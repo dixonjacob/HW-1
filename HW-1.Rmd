@@ -1,31 +1,31 @@
 ---
 title: "MATH 216 Homework 1"
-author: "WRITE YOUR NAME HERE"
+author: "Jacob Dixon"
 output: html_document
 ---
 
-```{r, echo=FALSE, message=FALSE, cache=TRUE}
+```{r, echo=FALSE, message=FALSE}
 # DO NOT EDIT THIS SECTION
-
 # Load packages
 suppressPackageStartupMessages(library(ggplot2))
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(lubridate))
-
+```
+```{r, echo=FALSE, message=FALSE, cache=TRUE}
 # Load data sets. Note this assumes this .Rmd files is in the same directory as
 # the .csv files.
 flights <- read.csv("data/flights.csv", stringsAsFactors = FALSE) %>% 
-  tbl_df() %>%
-  mutate(date=as.Date(date))
+ tbl_df() %>%
+ mutate(date=as.Date(date))
 weather <- read.csv("data/weather.csv", stringsAsFactors = FALSE) %>% 
-  tbl_df() %>%
-  mutate(date=as.Date(date))
+ tbl_df() %>%
+ mutate(date=as.Date(date))
 planes <- read.csv("data/planes.csv", stringsAsFactors = FALSE) %>% 
-  tbl_df()
+ tbl_df()
 airports <- read.csv("data/airports.csv", stringsAsFactors = FALSE) %>% 
-  tbl_df()
+ tbl_df()
 states <- read.csv("data/states.csv", stringsAsFactors = FALSE) %>% 
-  tbl_df()
+ tbl_df()
 ```
 
 
@@ -36,10 +36,10 @@ states <- read.csv("data/states.csv", stringsAsFactors = FALSE) %>%
 
 Please indicate
 
-* Who you collaborated with:
-* Roughly how much time you spent on this HW:
-* What gave you the most trouble:
-* Any comments you have:
+* Who you collaborated with: Alison Cook
+* Roughly how much time you spent on this HW: 7 hours or so
+* What gave you the most trouble: Dumb little technical things; forgetting to remove an extra piping symbol at the end of a function, capitalization, etc. 
+* Any comments you have: I was a little confused by some of the questions and had to spend too much time doing things that reall shouldn't. Not really anything you can do about that though...
 
 
 
@@ -54,9 +54,31 @@ Please indicate
 
 ```{r, echo=FALSE, message=FALSE, fig.width=12, fig.height=6}
 
+#Determine the number of flights per day
+per_day <- flights %>% 
+  group_by(date) %>% 
+  tally() %>% 
+  rename(num_of_flights = n)
+
+#Determine the number of flights delayed per day
+delayed <- flights %>% 
+  group_by(date) %>% 
+  filter(dep_delay > 30) %>% 
+  tally() %>% 
+  rename(num_delayed = n)
+
+#Merge the two and then calculate the proportion delayed per day
+joined_delay_and_date <- left_join(per_day,delayed, by = "date") %>% 
+  mutate(prop = round(num_delayed/num_of_flights,3))
+
+#Graph dat stuff. 
+ggplot(data=joined_delay_and_date, aes(x = date, y = prop))+
+  geom_point() +
+  labs(title = "Will My Flight Be Delayed by 30 Minutes or More?", x = "Date", y = "Proportion of Delayed Flights")
+
+#other idea: add color for seasons? Hmm...
+
 ```
-
-
 
 
 
@@ -66,6 +88,17 @@ Some people prefer flying on older planes.  Even though they aren't as nice,
 they tend to have more room.  Which airlines should these people favor?
 
 ```{r, echo=FALSE, fig.width=12, fig.height=6}
+
+#Join by the planes and group by the carrier
+planes_joinedto_flights <- left_join(flights, planes, by = "plane") %>% 
+  group_by(carrier)
+
+#Plot the carrier versus the year the plane was made 
+ggplot(data=planes_joinedto_flights, aes(x = carrier, y = year))+
+  geom_boxplot() +
+  labs(title = "How do I find an old plane?", x = "Airline Carrier", y = "Year the aircraft was built")
+
+  
 
 ```
 
@@ -83,6 +116,38 @@ they tend to have more room.  Which airlines should these people favor?
 
 ```{r, echo=FALSE, message=FALSE, fig.width=12, fig.height=6}
 
+#First, where did the listed flights go to:
+airports_joinedto_flights <- left_join(flights, airports, by = c("dest" = "iata")) %>% 
+  filter(carrier =="WN") %>% 
+  group_by(state) %>% 
+  distinct(flight) %>% 
+  tally() %>% 
+  rename(unique_flights_per_state  = n)
+  
+airports_joinedto_flights
+ 
+ggplot(data = airports_joinedto_flights, aes(x = state, y = unique_flights_per_state)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Where does Southwest fly?", x = "Destination State", y = "Number of Flights")
+
+
+
+
+#Join by the airport code and filter out only Southwest (WN) flights
+airports_joinedto_flights <- left_join(flights, airports, by = c("dest" = "iata")) %>% 
+  filter(carrier=="WN") %>% 
+  group_by(state) %>% 
+  tally() %>% 
+  rename(flights_per_state = n)
+
+airports_joinedto_flights
+
+ggplot(data = airports_joinedto_flights, aes(x = state, y = flights_per_state)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Where does Southwest really fly?", x = "Destination State", y = "Number of Flights")
+
+
+
 ```
 
 
@@ -94,6 +159,29 @@ they tend to have more room.  Which airlines should these people favor?
 What weather patterns are associated with the biggest departure delays?
 
 ```{r, echo=FALSE, message=FALSE, fig.width=12, fig.height=6}
+
+#Join the flights with weather info 
+flights_with_weather <- left_join(flights, weather, by = c("date", "hour") ) %>% 
+  group_by(conditions)
+
+ggplot(data = flights_with_weather, aes(x = conditions, y = dep_delay)) +
+  geom_boxplot() + 
+  scale_x_discrete(labels = abbreviate) +
+  labs(title = "Weather Conditions and Departure Delays", x = "Weather Condition Abbreviation", y = "Delay Length")
+
+
+#This looks jumbled and tough to read, but it is the right idea. 
+
+
+#I want to make bins with delays of various ranges, but I don't know how to make that kind of statement
+#it would probably need some ifelses 
+
+# delay_frequencies <- flights_with_weather %>% 
+#   group_by(dep_delay) %>% 
+#   tally() %>% 
+#   #something creating bins
+#   rename(delay_range = n)
+
 
 ```
 
@@ -108,5 +196,48 @@ carrier flies to from Houston in the month of July.  Consider the `month()`
 function from the `lubridate` package.
 
 ```{r, echo=FALSE, message=FALSE, fig.width=12, fig.height=6}
+
+#Do some joining to get us started
+airports_to_flights_first <- left_join(flights, airports, by = c("dest" = "iata"))
+
+#Complete the join so we can have all the info we want
+airports_to_flights_to_states <- left_join(airports_to_flights_first, states, by = "state") %>% 
+  mutate(month(date))
+
+#Filter out July
+airports_to_flights_to_states %>% 
+  filter(month(date) == 7) %>% 
+  tally()
+
+#This gives 20,548
+#Now to figure out how many in each region
+
+flights_per_region <- airports_to_flights_to_states %>% 
+  filter(month(date) == 7) %>% 
+  group_by(region) %>% 
+  tally() %>% 
+  rename(number_of_flights = n)
+
+#Now to do a quick calculation and add a column for the proportion
+
+flights_per_region <- flights_per_region %>% 
+  mutate(proportion = round(number_of_flights/20548,3))
+
+#Make this a bar plot! 
+
+ggplot(data = flights_per_region, aes(x = region, y = proportion)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Flights in July", x = "Region", y = "Proportion")
+
+
+# #I think this would work, but I don't know how to get it to work 
+# flights_in_july <- airports_to_flights_to_states %>% 
+#   group_by(region) %>%
+#   filter(month(date)) %>% 
+#   #somehow select for just july
+#   tally() %>%
+#   #divide by the total for all regions to get proportion
+#   rename(flights_per_region = n)
+
 
 ```
