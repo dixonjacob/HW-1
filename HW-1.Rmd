@@ -10,6 +10,7 @@ output: html_document
 suppressPackageStartupMessages(library(ggplot2))
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(lubridate))
+suppressPackageStartupMessages(library(ggthemes))
 ```
 ```{r, echo=FALSE, message=FALSE, cache=TRUE}
 # Load data sets. Note this assumes this .Rmd files is in the same directory as
@@ -37,9 +38,9 @@ states <- read.csv("data/states.csv", stringsAsFactors = FALSE) %>%
 Please indicate
 
 * Who you collaborated with: Alison Cook
-* Roughly how much time you spent on this HW: 7 hours or so
-* What gave you the most trouble: Dumb little technical things; forgetting to remove an extra piping symbol at the end of a function, capitalization, etc. 
-* Any comments you have: I was a little confused by some of the questions and had to spend too much time doing things that reall shouldn't. Not really anything you can do about that though...
+* Roughly how much time you spent on this HW: 15 hours+
+* What gave you the most trouble: Unintuitive ggplot features. Trying to add a legend to a figure with abbreviated titles is (to me) impossible.
+* Any comments you have: I was confused by the ambiguity of some of the questions and had to spend too much time doing things that really I shouldn't have focused on. 
 
 
 
@@ -67,19 +68,31 @@ delayed <- flights %>%
   tally() %>% 
   rename(num_delayed = n)
 
-#Merge the two and then calculate the proportion delayed per day
+#Merge the two and then calculate the proportion delayed per day (as a percent)
 joined_delay_and_date <- left_join(per_day,delayed, by = "date") %>% 
-  mutate(prop = round(num_delayed/num_of_flights,3))
+  mutate(prop = round(num_delayed/num_of_flights*100,3))
+
+#Add month column
+joined_delay_and_date <- joined_delay_and_date %>% 
+  mutate(month = month(date))
+
+#add season column
+joined_delay_and_date <- joined_delay_and_date %>% 
+  mutate(season = ifelse(month == 12|month == 1|month == 2, "Winter",
+                         ifelse(month == 3|month == 4|month == 5, "Spring",
+                                ifelse(month == 6|month == 7|month == 8, "Summer",
+                                       ifelse(month == 9|month == 10|month == 11, "Fall", NA)))))
 
 #Graph dat stuff. 
-ggplot(data=joined_delay_and_date, aes(x = date, y = prop))+
-  geom_point() +
-  labs(title = "Will My Flight Be Delayed by 30 Minutes or More?", x = "Date", y = "Proportion of Delayed Flights")
-
-#other idea: add color for seasons? Hmm...
+ggplot(data=joined_delay_and_date, aes(x = season, y = prop, fill = season)) +
+  geom_boxplot() +
+  theme_tufte() +
+  guides(fill=FALSE) +
+  labs(title = "Will My Flight Be Delayed by 30 Minutes or More?", 
+       x = "Season", y = "Percentage of Delayed Flights")
 
 ```
-
+It is clear by looking at the figure above that the majority of flights delayed by more than thirty minutes take place during the spring and summer. The fall and winter experience the fewest relative delays at this time. To understand why these delays take place, one must think about where these flights are taking place. The region of the U.S. these flights are going to and departing from (the south, as seen below) is more heavily affected by summer thunderstorms and other weather, rather than snow in the winter. Cold weather, especially in the form of freezing rain is influential, but less so than spring and summer weather conditions. 
 
 
 ## Question 2:
@@ -94,17 +107,15 @@ planes_joinedto_flights <- left_join(flights, planes, by = "plane") %>%
   group_by(carrier)
 
 #Plot the carrier versus the year the plane was made 
-ggplot(data=planes_joinedto_flights, aes(x = carrier, y = year))+
+ggplot(data=planes_joinedto_flights, aes(x = carrier, y = year)) +
   geom_boxplot() +
-  labs(title = "How do I find an old plane?", x = "Airline Carrier", y = "Year the aircraft was built")
-
+  theme_tufte() +
+  labs(title = "How do I find an old plane?", x = "Airline Carrier", 
+       y = "Year the aircraft was built")
   
 
 ```
-
-
-
-
+The figure above shows the distribution of manufacture years for planes on the various airlines. It can be seen that Envoy Air (MQ) has a fleet comprised of all “older” aircraft. This is not one of the large carriers, however, so destinations will be more limited. American Airlines (AA) would likely be the best choice for a customer looking for older aircraft. They are a large airline with many destinations and have a fleet comprised of aircraft mostly built around 1990. Delta is very similar in its older aircraft age to American Airlines, but there are planes in Delta’s fleet that are much newer. All other airlines tend to have newer aircraft (post 1995). It should also be kept in mind that airline companies can retro-fit the interiors of their aircraft, potentially eliminating the benefit of being an older aircraft. 
 
 
 
@@ -119,17 +130,20 @@ ggplot(data=planes_joinedto_flights, aes(x = carrier, y = year))+
 #First, where did the listed flights go to:
 airports_joinedto_flights <- left_join(flights, airports, by = c("dest" = "iata")) %>% 
   filter(carrier =="WN") %>% 
+  distinct(flight) %>%
   group_by(state) %>% 
-  distinct(flight) %>% 
   tally() %>% 
   rename(unique_flights_per_state  = n)
-  
-airports_joinedto_flights
- 
+
+
+#Get these sorted! 
+airports_joinedto_flights$state <- factor(airports_joinedto_flights$state,
+                                          levels = airports_joinedto_flights$state[order(-airports_joinedto_flights$unique_flights_per_state)])
+#Plot! With a nice theme! 
 ggplot(data = airports_joinedto_flights, aes(x = state, y = unique_flights_per_state)) +
   geom_bar(stat = "identity") +
+  theme_tufte() +
   labs(title = "Where does Southwest fly?", x = "Destination State", y = "Number of Flights")
-
 
 
 
@@ -140,16 +154,21 @@ airports_joinedto_flights <- left_join(flights, airports, by = c("dest" = "iata"
   tally() %>% 
   rename(flights_per_state = n)
 
-airports_joinedto_flights
 
+#Get them into the right order
+airports_joinedto_flights$state <- factor(airports_joinedto_flights$state,
+                                          levels = airports_joinedto_flights$state[order(-airports_joinedto_flights$flights_per_state)])
+
+#Plot that out
 ggplot(data = airports_joinedto_flights, aes(x = state, y = flights_per_state)) +
   geom_bar(stat = "identity") +
-  labs(title = "Where does Southwest really fly?", x = "Destination State", y = "Number of Flights")
-
+  theme_tufte() +
+  labs(title = "Where does Southwest really fly?",
+       x = "Destination State", y = "Number of Flights")
 
 
 ```
-
+Listed flights can be thought of as unique flights, and these are illustrated in the first figure above. These are flights with unique flight numbers. For example, if American Airlines flight 428 flies to Dallas, TX four times in one day, it will only be counted once for that day.  This is because it is the same flight, just at different times. The same is true for Southwest flights seen above. All the states flown to can be seen in the figures above, with Texas having the most flights. The number of unique flights in the top figure can be contrasted with the figure below that shows *all* of the flights that Southwest makes in one year. While a substantial number of unique flights go to Texas, an even larger difference can be seen in the total number of flights to Texas compared with the other states. It should be noted that “NA” is not a state, rather an airport in Florida that was not combined with other Florida flights because of its unlisted airport code. This addition does not change Florida’s ranking, nor the extreme disparity between Texas and any other state. 
 
 
 
@@ -164,28 +183,20 @@ What weather patterns are associated with the biggest departure delays?
 flights_with_weather <- left_join(flights, weather, by = c("date", "hour") ) %>% 
   group_by(conditions)
 
+#Graph that. Log transform to make it readable (removes delays =< 0)
 ggplot(data = flights_with_weather, aes(x = conditions, y = dep_delay)) +
   geom_boxplot() + 
-  scale_x_discrete(labels = abbreviate) +
-  labs(title = "Weather Conditions and Departure Delays", x = "Weather Condition Abbreviation", y = "Delay Length")
+  theme_tufte() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.25, hjust = 1)) +
+  scale_y_log10() +
+  labs(title = "What does the weather mean for my flight?", 
+       x = "Weather Condition", y = "Delay Length (minutes)")
 
-
-#This looks jumbled and tough to read, but it is the right idea. 
-
-
-#I want to make bins with delays of various ranges, but I don't know how to make that kind of statement
-#it would probably need some ifelses 
-
-# delay_frequencies <- flights_with_weather %>% 
-#   group_by(dep_delay) %>% 
-#   tally() %>% 
-#   #something creating bins
-#   rename(delay_range = n)
+#I could not get the legend to show up with abbreviated titles so I have rotated them instead. 
 
 
 ```
-
-
+The figure above shows the weather conditions that were recorded at the same time (within the hour) as flights were delayed. This is an association, rather than a causal relationship as all types of weather, even “clear” show a delay. It should also be noted that the delay length scale is logarithmic, moving up the axis means a dramatic increase in delay length for the traveler. The weather patterns to take note of are “freezing rain” and “light freezing rain” as these are most likely to cause the largest delay. That being said, these are likely to only occur during the winter, a time that has the fewest (proportionally) delays. The location of the destination and departure airport should be considered as well as the season and current weather conditions before predicting a possible delay. 
 
 
 
@@ -202,42 +213,30 @@ airports_to_flights_first <- left_join(flights, airports, by = c("dest" = "iata"
 
 #Complete the join so we can have all the info we want
 airports_to_flights_to_states <- left_join(airports_to_flights_first, states, by = "state") %>% 
-  mutate(month(date))
+  mutate(month = month(date))
 
 #Filter out July
-airports_to_flights_to_states %>% 
-  filter(month(date) == 7) %>% 
-  tally()
+num_flights_july <- airports_to_flights_to_states %>% 
+  filter(month == 7) %>% 
+  tally()  %>% .[[1]]
 
-#This gives 20,548
+
 #Now to figure out how many in each region
-
 flights_per_region <- airports_to_flights_to_states %>% 
-  filter(month(date) == 7) %>% 
-  group_by(region) %>% 
+  filter(month == 7) %>% 
+  group_by(carrier, region) %>% 
   tally() %>% 
   rename(number_of_flights = n)
 
 #Now to do a quick calculation and add a column for the proportion
-
 flights_per_region <- flights_per_region %>% 
-  mutate(proportion = round(number_of_flights/20548,3))
+  mutate(proportion = round(number_of_flights/num_flights_july,3))
 
-#Make this a bar plot! 
-
-ggplot(data = flights_per_region, aes(x = region, y = proportion)) +
-  geom_bar(stat = "identity") +
-  labs(title = "Flights in July", x = "Region", y = "Proportion")
-
-
-# #I think this would work, but I don't know how to get it to work 
-# flights_in_july <- airports_to_flights_to_states %>% 
-#   group_by(region) %>%
-#   filter(month(date)) %>% 
-#   #somehow select for just july
-#   tally() %>%
-#   #divide by the total for all regions to get proportion
-#   rename(flights_per_region = n)
-
+#Make this plot! 
+ggplot(data = flights_per_region, aes(x = carrier, y = number_of_flights, fill = region)) +
+  geom_bar(stat = "identity", position = "fill") +
+  theme_tufte() +
+  labs(title = "Flights in July", x = "Carrier", y = "Proportion")
 
 ```
+The figure above shows where flights from Houston, by various airlines, fly in the month of July. Most airlines do not fly to the Northeast (NE), three airlines have limited flights to that area, with the exception of one airline that only flies to that part of the U.S. This figure conveys, without overwhelming the traveler with various percentages, where airlines are likely to fly. Again, the gray colored parts of the bar represented airports with codes not in the database of states and airports associated with this dataset. 
